@@ -23,6 +23,36 @@ function generateKeyPair()
 }
 
 //Section 2 - Public Key to JWKS Format
+function publicKeyToJWK(publickKeyPem, kid)
+{
+    const publicKeyObj = CRYPTO.createPublicKey(publicKeyPem);
+    const der = publicKeyObj.export({type : 'spki', format : 'der'});
+
+    //Something
+    const asn1 = der.ToString('base64');
+
+    return {
+        kty: "RSA",
+        kid: kid,
+        use: "sig",
+        alg: "RS256",
+        n: publicKeyObj.export({format: 'jwk'}).n,
+        e: publicKeyObj.export({format: 'jwk'}).e
+    };
+}
+
+//Section 3 - Store Keys and Servee the JWKS
+let keys = [];
+keys.push(generateKeyPair());
+
+function getJWKS()
+{
+    const validKeys = keys.filter(k => k.expiresAt > Date.now());
+
+    return {
+        keys: validKeys.map(k => publicKeyToJWK(k.publicKey, k.kid))
+    };
+}
 
 //Section 3 - Server Stuff
 //Import HTTP Module
