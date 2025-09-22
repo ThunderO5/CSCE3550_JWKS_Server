@@ -1,76 +1,97 @@
-const HTTP = require("http"); //Import HTTP Module
-const CRYPTO = require("crypto"); //Allows for RSA implementation
-const {v4 : uuidv4} = require("uuid"); //The unique ID
-const jwt = require("jsonwebtoken");
-const HOSTNAME = "127.0.0.1"; //Hostname for the server
-const PORT = 8080; //The server's port for incoming requests
+const HTTP = require("http");           //Imports HTTP Module for Server
+const CRYPTO = require("crypto");       //Imports Crypto Module for RSA Implementation
+const {v4 : UUIVD4} = require("uuid");  //Imports UUID Module for Unique IDS
+const JWT = require("jsonwebtoken");    // Imports JTW for JTW Functionality
+const HOSTNAME = "127.0.0.1";           //Hostname for the Server
+const PORT = 8080;                      //The Port of the Server for Incoming Requests
 
-//Section 1 - RSA Stuff
-//Generate new RSA key pair
-function generateKeyPair(isExpired = false)
+//Functionality One - Generate RSA Key Pair
+function generateKeyPair()
 {
-    //Sets up the public and private pairs
-    const {publicKey, privateKey} = CRYPTO.generateKeyPairSync("rsa", 
+    isExpired = false;
+
+    //Defines Public and Private Keys
+    const {PUBLICKEY, PRIVATEKEY} = CRYPTO.generateKeyPairSync("rsa", 
     {
         modulusLength: 2048,
         publicKeyEncoding: {type: "spki", format: "pem"},
         privateKeyEncoding: {type: "pkcs8", format: "pem"}
     });
 
-    //returns the unique id, public and private keys, and expiration date
+    //Returns the Unique ID, Private and Public Keys, and Expiration Time
     return {
-        kid: uuidv4(), //Unique id
-        publicKey,
-        privateKey,
-        expiresAt: isExpired ? Date.now() - 60 * 1000 : Date.now() +  5 * 60 * 1000
+        kid: UUIVD4(),
+        PUBLICKEY,
+        PRIVATEKEY,
+        expiresAt: areKeysExpired(isExpired)
     };
+}
+
+//Helper Function - Checks if the Key's Expiration Passed
+function areKeysExpired(isExpired)
+{
+    if (isExpired)
+    {
+        Date.now() - 60 * 1000; //Keys Expired One Minute Ago
+    }
+    else
+    {
+        Date.now() + 5 * 60 * 1000; //Keys will Expire in Five Minutes
+    }
 }
 
 //Section 2 - Public Key to JWKS Format
 function publicKeyToJWK(publicKeyPem, kid)
 {
-    const publicKeyObj = CRYPTO.createPublicKey(publicKeyPem);
-    const jwk = publicKeyObj.export({format : "jwk"});
+    //Creates a Public Key
+    const PUBLICKEYOBJ = CRYPTO.createPublicKey(publicKeyPem);
 
+    //Converts Public Key to JWK Format
+    const JWK = PUBLICKEYOBJ.export({format : "jwk"});
+
+    //Returns 
     return {
         kty: "RSA",
         kid: kid,
         use: "sig",
         alg: "RS256",
-        n: jwk.n,
-        e: jwk.e
+        n: JWK.n,
+        e: JWK.e
     };
 }
 
-//Section 3 - Store Keys and Servee the JWKS
+//Section 3 - Store Keys and Serve the JWKS
 let keys = [];
-keys.push(generateKeyPair(false));
-keys.push(generateKeyPair(true));
+keys.push(generateKeyPair());
 
 function getJWKS()
 {
-    const validKeys = keys.filter(k => k.expiresAt > Date.now());
+    const VALIDKEYS = keys.filter(k => k.expiresAt > Date.now());
 
     return {
-        keys: validKeys.map(k => publicKeyToJWK(k.publicKey, k.kid))
+        keys: VALIDKEYS.map(k => publicKeyToJWK(k.publicKey, k.kid))
     };
 }
 
-//Section 4 - HandleAuth
+//Section 4 - Handling Autherization
 function handleAuth(req, res, url)
 {
-    const expired = url.searchParams.get("expired") === true;
+    //Checks if the URL's keys are expired
+    const EXPIRED = url.searchParams.get("expired") === true;
 
     let key;
-    if (expired)
+    if (EXPIRED)
     {
+        //Keys are Expired
         key = keys.find(k => k.expiresAt < Date.now());
     }
     else
     {
+        //Keys are Expired
         key = keys.find(k => k.expiresAt > Date.now());
     }
 
+    //Key is Not Found
     if (!key)
     {
         res.writeHead(500, {'Content-Type' : 'application/json'});
@@ -78,31 +99,36 @@ function handleAuth(req, res, url)
         return;
     }
 
+    //Data to Transfer
     const payload = {user: "test-user"};
 
-    const token = jwt.sign(payload, key.privateKey, {
+    //Signs the JWT Token
+    const token = JWT.sign(payload, key.privateKey, {
         algorithm: "RS256",
         keyid: key.kid,
-        expiresIn: expired ? "-1s" : "5m"
+        expiresIn: EXPIRED ? "-1s" : "5m"
     });
 
     res.writeHead(200, {'Content-Type' : 'application/json'});
     res.end(JSON.stringify({token}));
 }
 
-//Section 3 - Server Stuff
+//Section 5 - The Main Server
 //Server is created
 const server = HTTP.createServer((req, res) => {
-    const url = new URL(req.url, `https://${req.headers.host}`);
+    //Created URL for the Server
+    const URL = new URL(req.url, `https://${req.headers.host}`);
+
+    //Goes to Different URL Paths
     if (url.pathname === '/jwks.json')
     {
-        const jwks = getJWKS();
+        const JWKS = getJWKS();
         res.writeHead(200, {'Content-Type' : 'application/json'});
-        res.end(JSON.stringify(jwks, null, 2));
+        res.end(JSON.stringify(JWKS, null, 2));
     }
-    else if (url.pathname === '/auth' && req.method === 'POST')
+    else if (URL.pathname === '/auth' && req.method === 'POST')
     {
-        handleAuth(req, res, url);
+        handleAuth(req, res, URL);
     }
     else
     {
@@ -113,5 +139,7 @@ const server = HTTP.createServer((req, res) => {
 
 //Server listens to any connections
 server.listen(PORT, HOSTNAME, () => {
-    console.log(`Server running at http://${HOSTNAME}:${PORT}`);
+    console.log(`Server running at http://${HOSTNAME}:${PORT}`);    //Main Page, so error
+    console.log(`Server running at http://${HOSTNAME}:${PORT}/jwks.json`);    //The JWKS JSON File
+    console.log(`Server running at http://${HOSTNAME}:${PORT}/auth`);    //AUTH page
 });
